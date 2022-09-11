@@ -89,6 +89,8 @@ def main(spot_dict = {}):
                 
                 #this is just in case you don't want a ton of non-owned, but saved, playlists in your dictionary. 
                 #this function can take quite a minute depending on how many playlists and how big they are
+
+                #we're putting the tracks in ['tracks']['tracks'] because there's already some data in ['tracks'] and i figure it will be easier to iterate over in the future
                 if only_add_owned_playlists:
                     if spot_dict['playlists'][spot_number]['owner']['id'] == spot_dict['user']['id']:
                         spot_dict['playlists'][spot_number]['tracks']['tracks'] = multiple_api_calls_playlist(spot_obj, id)
