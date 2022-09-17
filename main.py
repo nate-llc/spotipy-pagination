@@ -1,15 +1,32 @@
 import spotipy
+import time
+from timer import timer
 
-def main(spot_dict = {}):
+#use this class by making an object
+#object = SpotDict(spotipy_authorization_token)
+#then use the methods as available, 
+#object.liked_songs() - get all of a user's liked songs
+#object.saved_albums() - get user's saved_albums and the tracks inside
+#object.get_playlsits() - gets all the data about the playlist except for the tracks inside
+#object.insert_playlist_items() - this one takes the playlists and adds the tracks inside of those playlists inside of ['tracks'] | can be very performance/data heavy with very large playlists, consider making a maximum limit or something
 
-    #make a spotipy object however you see fit, make that equal to spot_obj
-    spot_obj = spotipy.Spotify() #you need an auth token here
-    
-    #user info
-    spot_dict['user'] = spot_obj.current_user()
-    
+class SpotDict:
 
-    def multiple_api_calls(func, limit = 50):
+    def __init__(self, auth):
+        self.spot_obj = spotipy.Spotify(auth) #you need an authetication token here, see spotify/spotipy docs
+        self.LIMIT_ITERATIONS = False #for debugging, only go through the different iterations in multiple_api_calls() a certain number of times.
+        self.SLEEP_TIME = 0 #sleep time for api-call budgeting
+        self.REMOVE_AVAILABLE_MARKETS = True #available markets is a lot of data to store (over half of the text data!) so this removes all of that
+        self.MAX_PLAYLIST_CALCULATION = False #for debugging, if you only want to calculate a few playlists instead of all of them.
+        self.spot_dict = {}
+        self.spot_dict['user'] = self.spot_obj.current_user()
+
+    @timer
+    def multiple_api_calls(self, func, limit = 50):
+
+        if self.LIMIT_ITERATIONS:
+            iterations = self.LIMIT_ITERATIONS
+            limit = self.LIMIT_ITERATIONS
         
         #func is a variable because this exact method works for multiple information requests from spotify.
         #they have a consistent scheme that the JSON follows. 
@@ -20,6 +37,7 @@ def main(spot_dict = {}):
         iterations = (int((total / limit)) + (total % limit > 0))
 
         longer_list = []
+        
         for x in range(iterations):
             #actaully grab the information from func().
             #example = spot_obj.current_user_saved_tracks(limit = limit, offset = x * limit)
@@ -27,8 +45,6 @@ def main(spot_dict = {}):
             response = func(limit=limit, offset= x * limit)
             longer_list.append(response)
         
-        spot_dict['longer_list'] = longer_list
-
         #looks inside of the longer_list, yoinks the ['items'], then adds them to a combined_list
         #this means that we're only taking out the 'items' and putting them in the value of whatever dict key we're calling it from
         #meaning that we're losing all the information that's not in ['items']. if you want this, you can still save it by
@@ -37,73 +53,127 @@ def main(spot_dict = {}):
         combination_list = []      
         for iteration in longer_list:
             for x in range(len(iteration['items'])):
+                if self.REMOVE_AVAILABLE_MARKETS:
+                    try:
+                        iteration['items'][x]['track'].pop('available_markets')
+                        iteration['items'][x]['track']['album'].pop('available_markets')
+                        if "available_markets" not in iteration['items'][x]['track'].keys():
+                            print(f"successfully removed available_markets from {str(func)}")
+                        
+                    except:
+                        try:
+                            iteration['items'][x]['album'].pop('available_markets')
+                            print(f'removed available_markets from album {iteration["items"][x]["album"]["name"]}')
+                            for song in iteration['items'][x]['album']['tracks']['items']:
+                                song.pop("available_markets")
+                            print(f'removed available_markets from songs inside album {iteration["items"][x]["album"]["name"]}')
+                        except:
+                            if 'Spotify.current_user_playlists' not in str(func):
+                                print(f"couldn't remove available_markets from {str(func)}")
+
+
                 combination_list.append(iteration['items'][x])
         return combination_list
-
-
-    def multiple_api_calls_playlist(spot_obj, playlist_id, limit = 100):
+    
+    @timer
+    def liked_songs(self):
+        liked_songs = self.multiple_api_calls(func = self.spot_obj.current_user_saved_tracks, limit = 50)
+        if liked_songs: 
+            self.spot_dict['liked_songs'] = liked_songs
+            print('added liked songs to dict')
+    
+    @timer
+    def saved_albums(self):
+        saved_albums = self.multiple_api_calls(func = self.spot_obj.current_user_saved_albums, limit = 50)
+        if len(saved_albums):
+            self.spot_dict['saved_albums'] = saved_albums
+            print('added saved albums to dict')
+    
+    @timer
+    def multiple_api_calls_playlist(self, playlist_id, name, limit = 100):
         #this one is a little frustrating because the only difference between this and multiple_api_calls() is that i needed an extra function argument 'playlist_id'
         #which can't be present for the other functions. i think you can do something with **kwargs but i couldn't understand how
-        total = spot_obj.playlist_tracks(playlist_id = playlist_id, limit = 1)['total']
+        total = self.spot_obj.playlist_tracks(playlist_id = playlist_id, limit = 1)['total']
         iterations = (int((total / limit)) + (total % limit > 0))
+        if self.LIMIT_ITERATIONS:
+            iterations = self.LIMIT_ITERATIONS
+            limit = self.LIMIT_ITERATIONS
         longer_list = []
+        song_number = 0
         for x in range(iterations):
-            response = spot_obj.playlist_tracks(playlist_id = playlist_id, limit = limit, offset = x * limit)
+            response = self.spot_obj.playlist_tracks(playlist_id = playlist_id, limit = limit, offset = x * limit)
             longer_list.append(response)
-
+            
+            print(f'added songs {song_number} through {song_number + limit}')
+            print(f'waiting {self.SLEEP_TIME} seconds')
+            song_number += limit
+            time.sleep(self.SLEEP_TIME)
+        removal_score = 0
         combination_list = []      
         for iteration in longer_list:
             for x in range(len(iteration['items'])):
+                if self.REMOVE_AVAILABLE_MARKETS:
+                    try:
+                            iteration['items'][x]['track'].pop('available_markets')
+                            iteration['items'][x]['track']['album'].pop('available_markets')
+                            if 'available_markets' not in iteration['items'][x]['track']['album'].keys():
+                                # print(f"iteration['items'][x]['track']['album'].keys() = {iteration['items'][x]['track']['album'].keys()}")
+                                removal_score += 1
+                    except:
+                        print(f"couldn't remove available_markets from {str(playlist_id)}")
                 combination_list.append(iteration['items'][x])
+
+        if removal_score == total:
+            print(f'successfully removed available_markets from all songs in {name}')
+        elif removal_score:
+            print(f"removed {removal_score} of {total} available_markets from {name}")
+        elif not self.REMOVE_AVAILABLE_MARKETS:
+            print(f"REMOVE_AVAILABLE_MARKETS set to False, did not remove available_markets from {name}")
+        elif self.REMOVE_AVAILABLE_MARKETS and not removal_score:
+            print(f"could not remove available markets from {name}")
+
+        print(f"added {len(combination_list)} songs from playlist {name} with playist id {playlist_id} to dict")
         return combination_list
 
-    #grab liked_songs, and saved_albums, from user object, add them to spot_dict if truthy
-    liked_songs = multiple_api_calls(func = spot_obj.current_user_saved_tracks, limit = 50)
-    if liked_songs: 
-        spot_dict['liked_songs'] = liked_songs
-    
-    saved_albums = multiple_api_calls(func = spot_obj.current_user_saved_albums, limit = 50)
-    if len(saved_albums):
-        spot_dict['saved_albums'] = saved_albums
-    
-    
-    #this gives you everything about the playlist except for the tracks within it
-    playlists = multiple_api_calls(func = spot_obj.current_user_playlists, limit = 50)
-    if playlists:
-        #put the spotify return inside of our dict, it's a tool we're going to use for later
-        spot_dict['playlists'] = playlists
+    @timer
+    def playlists(self):
+        self.playlists = self.multiple_api_calls(func = self.spot_obj.current_user_playlists)
+        self.spot_dict['playlists'] = self.playlists
+        print(f'added {len(self.playlists)} playlists to dict')
 
-        def list_playlist_ids(spot_dict):
-            #this makes a list of all the playlist_ids, purely just so we can iterate over them easier in just a second
+    @timer
+    def playlist_items(self, only_add_owned_playlists = True): 
+        #this makes a list of all the playlist_ids, purely just so we can iterate over them easier in just a second
+        #this is inside its own sub-function for @timer logging
+        @timer
+        def playlist_ids(self):
             ids = []
-            for x in range(len(playlists)):
-                ids.append(spot_dict['playlists'][x]['id'])
-            spot_dict['playlist_ids'] = ids
+            for x in range(len(self.playlists)):
+                ids.append(self.spot_dict['playlists'][x]['id'])
+            self.spot_dict['playlist_ids'] = ids
+            print(f'added playlist ids to dict')
+        
+        playlist_ids(self)
+        #take that list of playlist_ids, insert that id in multiple_api_calls_playlist(spot_obj, id)
+        #we need the spot_number because in ['playlists'], it's ordered from 0 up. this is the spot in which we're going to put the tracks
+        for id in self.spot_dict['playlist_ids']:
+            
+            if self.MAX_PLAYLIST_CALCULATION:
+                if (self.spot_dict['playlist_ids'].index(id) - 1) >= self.MAX_PLAYLIST_CALCULATION:
+                    break
+            
 
-        def insert_playlist_items(spot_dict, only_add_owned_playlists):
-            #take that list of playlist_ids, insert that id in multiple_api_calls_playlist(spot_obj, id)
-            #we need the spot_number because in ['playlists'], it's ordered from 0 up. this is the spot in which we're going to put the tracks
-            for id in spot_dict['playlist_ids']:
-                spot_number = spot_dict['playlist_ids'].index(id)
-                name = spot_dict['playlists'][spot_number]['name']
-                
-                #this is just in case you don't want a ton of non-owned, but saved, playlists in your dictionary. 
-                #this function can take quite a minute depending on how many playlists and how big they are
-                #we're putting the tracks in ['tracks']['tracks'] because there's already some data in ['tracks'] and i figure it will be easier to iterate over in the future
-                if only_add_owned_playlists:
-                    if spot_dict['playlists'][spot_number]['owner']['id'] == spot_dict['user']['id']:
-                        spot_dict['playlists'][spot_number]['tracks']['tracks'] = multiple_api_calls_playlist(spot_obj, id)
-                        print(f'added {name}')
-                    else:
-                        print(f'skipped {name}')
+            spot_number = self.spot_dict['playlist_ids'].index(id)
+            #name purely for logging
+            name = self.spot_dict['playlists'][spot_number]['name']
+            #this is just in case you don't want a ton of non-owned, but saved, playlists in your dictionary. 
+            #this function can take quite a minute depending on how many playlists and how big they are
+            if only_add_owned_playlists:
+                if self.spot_dict['playlists'][spot_number]['owner']['id'] == self.spot_dict['user']['id']:
+                    print(f'inserting tracks from {name} in slot {spot_number}')    
+                    self.spot_dict['playlists'][spot_number]['tracks']['tracks'] = self.multiple_api_calls_playlist(playlist_id = id, name = name)
                 else:
-                    spot_dict['playlists'][spot_number]['tracks']['tracks'] = multiple_api_calls_playlist(spot_obj, id)
-                    print(f'added {name}')
-
-        #calling the two functions because i think it makes variable-lookup stuff more performant and also it's easier to temporarily disable for debugging purposes
-        list_playlist_ids(spot_dict)
-        insert_playlist_items(spot_dict, True)
-
-    return spot_dict 
-
-
+                    print(f'skipped {name}\n')
+            else:
+                self.spot_dict['playlists'][spot_number]['tracks']['tracks'] = self.multiple_api_calls_playlist(playlist_id = id, name = name)
+                print(f'inserting tracks from {name} in slot {spot_number}')
