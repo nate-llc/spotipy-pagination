@@ -21,6 +21,26 @@ class SpotDict:
         self.spot_dict = {}
         self.spot_dict['user'] = self.spot_obj.current_user()
 
+
+    def remove_available_markets(self, iteration, func, x):
+        try:
+            iteration['items'][x]['track'].pop('available_markets')
+            iteration['items'][x]['track']['album'].pop('available_markets')
+            if "available_markets" not in iteration['items'][x]['track'].keys():
+                print(f"successfully removed available_markets from {str(func)}")
+            
+        except:
+            try:
+                iteration['items'][x]['album'].pop('available_markets')
+                print(f'removed available_markets from album {iteration["items"][x]["album"]["name"]}')
+                for song in iteration['items'][x]['album']['tracks']['items']:
+                    song.pop("available_markets")
+                print(f'removed available_markets from songs inside album {iteration["items"][x]["album"]["name"]}')
+            except:
+                if 'Spotify.current_user_playlists' not in str(func):
+                    print(f"couldn't remove available_markets from {str(func)}")
+        return iteration
+
     @timer
     def multiple_api_calls(self, func, limit = 50):
 
@@ -53,37 +73,19 @@ class SpotDict:
         combination_list = []      
         for iteration in longer_list:
             for x in range(len(iteration['items'])):
-                if self.REMOVE_AVAILABLE_MARKETS:
-                    try:
-                        iteration['items'][x]['track'].pop('available_markets')
-                        iteration['items'][x]['track']['album'].pop('available_markets')
-                        if "available_markets" not in iteration['items'][x]['track'].keys():
-                            print(f"successfully removed available_markets from {str(func)}")
-                        
-                    except:
-                        try:
-                            iteration['items'][x]['album'].pop('available_markets')
-                            print(f'removed available_markets from album {iteration["items"][x]["album"]["name"]}')
-                            for song in iteration['items'][x]['album']['tracks']['items']:
-                                song.pop("available_markets")
-                            print(f'removed available_markets from songs inside album {iteration["items"][x]["album"]["name"]}')
-                        except:
-                            if 'Spotify.current_user_playlists' not in str(func):
-                                print(f"couldn't remove available_markets from {str(func)}")
-
-
+                if self.REMOVE_AVAILABLE_MARKETS: self.remove_available_markets(iteration, func, x)
                 combination_list.append(iteration['items'][x])
         return combination_list
     
     @timer
-    def liked_songs(self):
+    def get_liked_songs(self):
         liked_songs = self.multiple_api_calls(func = self.spot_obj.current_user_saved_tracks, limit = 50)
         if liked_songs: 
             self.spot_dict['liked_songs'] = liked_songs
             print('added liked songs to dict')
     
     @timer
-    def saved_albums(self):
+    def get_saved_albums(self):
         saved_albums = self.multiple_api_calls(func = self.spot_obj.current_user_saved_albums, limit = 50)
         if len(saved_albums):
             self.spot_dict['saved_albums'] = saved_albums
@@ -108,41 +110,24 @@ class SpotDict:
             print(f'waiting {self.SLEEP_TIME} seconds')
             song_number += limit
             time.sleep(self.SLEEP_TIME)
-        removal_score = 0
         combination_list = []      
         for iteration in longer_list:
             for x in range(len(iteration['items'])):
                 if self.REMOVE_AVAILABLE_MARKETS:
-                    try:
-                            iteration['items'][x]['track'].pop('available_markets')
-                            iteration['items'][x]['track']['album'].pop('available_markets')
-                            if 'available_markets' not in iteration['items'][x]['track']['album'].keys():
-                                # print(f"iteration['items'][x]['track']['album'].keys() = {iteration['items'][x]['track']['album'].keys()}")
-                                removal_score += 1
-                    except:
-                        print(f"couldn't remove available_markets from {str(playlist_id)}")
+                    iteration['items'][x]['track'].pop('available_markets')
+                    iteration['items'][x]['track']['album'].pop('available_markets')
                 combination_list.append(iteration['items'][x])
-
-        if removal_score == total:
-            print(f'successfully removed available_markets from all songs in {name}')
-        elif removal_score:
-            print(f"removed {removal_score} of {total} available_markets from {name}")
-        elif not self.REMOVE_AVAILABLE_MARKETS:
-            print(f"REMOVE_AVAILABLE_MARKETS set to False, did not remove available_markets from {name}")
-        elif self.REMOVE_AVAILABLE_MARKETS and not removal_score:
-            print(f"could not remove available markets from {name}")
-
         print(f"added {len(combination_list)} songs from playlist {name} with playist id {playlist_id} to dict")
         return combination_list
 
     @timer
-    def playlists(self):
+    def get_playlists(self):
         self.playlists = self.multiple_api_calls(func = self.spot_obj.current_user_playlists)
         self.spot_dict['playlists'] = self.playlists
         print(f'added {len(self.playlists)} playlists to dict')
 
     @timer
-    def playlist_items(self, only_add_owned_playlists = True): 
+    def get_playlists_and_items(self, only_add_owned_playlists = True): 
         #this makes a list of all the playlist_ids, purely just so we can iterate over them easier in just a second
         #this is inside its own sub-function for @timer logging
         @timer
@@ -177,3 +162,10 @@ class SpotDict:
             else:
                 self.spot_dict['playlists'][spot_number]['tracks']['tracks'] = self.multiple_api_calls_playlist(playlist_id = id, name = name)
                 print(f'inserting tracks from {name} in slot {spot_number}')
+
+
+x = SpotDict('BQCR8U6e4RIOQFsglDwnWGOvSAUtP9eSMMtnuTN8sono7n48Bqgl_dRc7K_2rTQ5tcPzHFUHvpuW-h-rwlykmkBtkoD3CBJMl7LFvih4W7RHyBpIWkRb0ozB1QRa_Cb-32Xm2K7Hbdq-jbiY8gCO7Fu4jth1W_iW0n34CSMVjfPbxfoShuBFPhco_TmgliXkdmbYT-ypPEN8UA6-')
+
+print(x.get_liked_songs(), x.get_playlists(), x.get_saved_albums())
+x.get_playlists_and_items()
+print(x.spot_dict)
