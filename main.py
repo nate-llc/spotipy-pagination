@@ -5,8 +5,8 @@ from timer import timer
 #use this class by making an object
 #object = SpotDict(spotipy_authorization_token)
 #then use the methods as available, 
-#object.liked_songs() - get all of a user's liked songs
-#object.saved_albums() - get user's saved_albums and the tracks inside
+#object.get_liked_songs() - get all of a user's liked songs
+#object.get_saved_albums() - get user's saved_albums and the tracks inside
 #object.get_playlsits() - gets all the data about the playlist except for the tracks inside
 #object.insert_playlist_items() - this one takes the playlists and adds the tracks inside of those playlists inside of ['tracks'] | can be very performance/data heavy with very large playlists, consider making a maximum limit or something
 
@@ -91,6 +91,13 @@ class SpotDict:
             self.spot_dict['saved_albums'] = saved_albums
             print('added saved albums to dict')
     
+    @timer
+    def get_top_items(self):
+        top_items = self.multiple_api_calls(func = self.spot_obj.current_user_top_tracks, limit = 50)
+        if top_items:
+            self.spot_dict['top items'] = top_items
+            if self.DEBUG_PRINT: print(f'added {len(top_items)} top items to dict')
+
     @timer
     def multiple_api_calls_playlist(self, playlist_id, name, limit = 100):
         #this one is a little frustrating because the only difference between this and multiple_api_calls() is that i needed an extra function argument 'playlist_id'
