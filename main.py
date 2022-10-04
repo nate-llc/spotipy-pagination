@@ -8,7 +8,7 @@ from timer import timer
 #object.get_liked_songs() - get all of a user's liked songs
 #object.get_saved_albums() - get user's saved_albums and the tracks inside
 #object.get_playlsits() - gets all the data about the playlist except for the tracks inside
-#object.insert_playlist_items() - this one takes the playlists and adds the tracks inside of those playlists inside of ['tracks'] | can be very performance/data heavy with very large playlists, consider making a maximum limit or something
+#object.get_playlists_and_items() - this one takes the playlists and adds the tracks inside of those playlists inside of ['tracks'] | can be very performance/data heavy with very large playlists, consider making a maximum limit or something
 
 class SpotDict:
 
@@ -169,10 +169,3 @@ class SpotDict:
             else:
                 self.spot_dict['playlists'][spot_number]['tracks']['tracks'] = self.multiple_api_calls_playlist(playlist_id = id, name = name)
                 print(f'inserting tracks from {name} in slot {spot_number}')
-
-
-x = SpotDict('auth')
-
-print(x.get_liked_songs(), x.get_playlists(), x.get_saved_albums())
-x.get_playlists_and_items()
-print(x.spot_dict)
