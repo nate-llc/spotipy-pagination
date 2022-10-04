@@ -14,12 +14,13 @@ class SpotDict:
 
     def __init__(self, auth):
         self.spot_obj = spotipy.Spotify(auth) #you need an authetication token here, see spotify/spotipy docs
+        self.spot_dict = {} #this is a tool we'll use for later!
+        self.spot_dict['user'] = self.spot_obj.current_user() #user info, used for comparing if user is the playlist owner
         self.LIMIT_ITERATIONS = False #for debugging, only go through the different iterations in multiple_api_calls() a certain number of times.
         self.SLEEP_TIME = 0 #sleep time for api-call budgeting
         self.REMOVE_AVAILABLE_MARKETS = True #available markets is a lot of data to store (over half of the text data!) so this removes all of that
         self.MAX_PLAYLIST_CALCULATION = False #for debugging, if you only want to calculate a few playlists instead of all of them.
-        self.spot_dict = {}
-        self.spot_dict['user'] = self.spot_obj.current_user()
+        self.DEBUG_PRINT = True #enables printing throughout the class
 
 
     def remove_available_markets(self, iteration, func, x):
@@ -27,18 +28,18 @@ class SpotDict:
             iteration['items'][x]['track'].pop('available_markets')
             iteration['items'][x]['track']['album'].pop('available_markets')
             if "available_markets" not in iteration['items'][x]['track'].keys():
-                print(f"successfully removed available_markets from {str(func)}")
+                if self.DEBUG_PRINT: print(f"successfully removed available_markets from {str(func)}")
             
         except:
             try:
                 iteration['items'][x]['album'].pop('available_markets')
-                print(f'removed available_markets from album {iteration["items"][x]["album"]["name"]}')
+                if self.DEBUG_PRINT: print(f'removed available_markets from album {iteration["items"][x]["album"]["name"]}')
                 for song in iteration['items'][x]['album']['tracks']['items']:
                     song.pop("available_markets")
-                print(f'removed available_markets from songs inside album {iteration["items"][x]["album"]["name"]}')
+                if self.DEBUG_PRINT: print(f'removed available_markets from songs inside album {iteration["items"][x]["album"]["name"]}')
             except:
                 if 'Spotify.current_user_playlists' not in str(func):
-                    print(f"couldn't remove available_markets from {str(func)}")
+                    if self.DEBUG_PRINT: print(f"couldn't remove available_markets from {str(func)}")
         return iteration
 
     @timer
@@ -82,14 +83,14 @@ class SpotDict:
         liked_songs = self.multiple_api_calls(func = self.spot_obj.current_user_saved_tracks, limit = 50)
         if liked_songs: 
             self.spot_dict['liked_songs'] = liked_songs
-            print('added liked songs to dict')
+            if self.DEBUG_PRINT: print('added liked songs to dict')
     
     @timer
     def get_saved_albums(self):
         saved_albums = self.multiple_api_calls(func = self.spot_obj.current_user_saved_albums, limit = 50)
         if len(saved_albums):
             self.spot_dict['saved_albums'] = saved_albums
-            print('added saved albums to dict')
+            if self.DEBUG_PRINT: print('added saved albums to dict')
     
     @timer
     def get_top_items(self):
@@ -113,8 +114,8 @@ class SpotDict:
             response = self.spot_obj.playlist_tracks(playlist_id = playlist_id, limit = limit, offset = x * limit)
             longer_list.append(response)
             
-            print(f'added songs {song_number} through {song_number + limit}')
-            print(f'waiting {self.SLEEP_TIME} seconds')
+            if self.DEBUG_PRINT: print(f'added songs {song_number} through {song_number + limit}')
+            if self.DEBUG_PRINT: print(f'waiting {self.SLEEP_TIME} seconds')
             song_number += limit
             time.sleep(self.SLEEP_TIME)
         combination_list = []      
@@ -124,14 +125,14 @@ class SpotDict:
                     iteration['items'][x]['track'].pop('available_markets')
                     iteration['items'][x]['track']['album'].pop('available_markets')
                 combination_list.append(iteration['items'][x])
-        print(f"added {len(combination_list)} songs from playlist {name} with playist id {playlist_id} to dict")
+        if self.DEBUG_PRINT: print(f"added {len(combination_list)} songs from playlist {name} with playist id {playlist_id} to dict")
         return combination_list
 
     @timer
     def get_playlists(self):
         self.playlists = self.multiple_api_calls(func = self.spot_obj.current_user_playlists)
         self.spot_dict['playlists'] = self.playlists
-        print(f'added {len(self.playlists)} playlists to dict')
+        if self.DEBUG_PRINT: print(f'added {len(self.playlists)} playlists to dict')
 
     @timer
     def get_playlists_and_items(self, only_add_owned_playlists = True): 
@@ -143,7 +144,7 @@ class SpotDict:
             for x in range(len(self.playlists)):
                 ids.append(self.spot_dict['playlists'][x]['id'])
             self.spot_dict['playlist_ids'] = ids
-            print(f'added playlist ids to dict')
+            if self.DEBUG_PRINT: print(f'added playlist ids to dict')
         
         playlist_ids(self)
         #take that list of playlist_ids, insert that id in multiple_api_calls_playlist(spot_obj, id)
@@ -162,10 +163,10 @@ class SpotDict:
             #this function can take quite a minute depending on how many playlists and how big they are
             if only_add_owned_playlists:
                 if self.spot_dict['playlists'][spot_number]['owner']['id'] == self.spot_dict['user']['id']:
-                    print(f'inserting tracks from {name} in slot {spot_number}')    
+                    if self.DEBUG_PRINT: print(f'inserting tracks from {name} in slot {spot_number}')    
                     self.spot_dict['playlists'][spot_number]['tracks']['tracks'] = self.multiple_api_calls_playlist(playlist_id = id, name = name)
                 else:
-                    print(f'skipped {name}\n')
+                    if self.DEBUG_PRINT: print(f'skipped {name}\n')
             else:
                 self.spot_dict['playlists'][spot_number]['tracks']['tracks'] = self.multiple_api_calls_playlist(playlist_id = id, name = name)
-                print(f'inserting tracks from {name} in slot {spot_number}')
+                if self.DEBUG_PRINT: print(f'inserting tracks from {name} in slot {spot_number}')
