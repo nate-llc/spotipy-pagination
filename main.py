@@ -5,10 +5,10 @@ from timer import timer
 #use this class by making an object
 #object = SpotDict(spotipy_authorization_token)
 #then use the methods as available, 
-#object.liked_songs() - get all of a user's liked songs
-#object.saved_albums() - get user's saved_albums and the tracks inside
+#object.get_liked_songs() - get all of a user's liked songs
+#object.get_saved_albums() - get user's saved_albums and the tracks inside
 #object.get_playlsits() - gets all the data about the playlist except for the tracks inside
-#object.insert_playlist_items() - this one takes the playlists and adds the tracks inside of those playlists inside of ['tracks'] | can be very performance/data heavy with very large playlists, consider making a maximum limit or something
+#object.get_playlists_and_items() - this one takes the playlists and adds the tracks inside of those playlists inside of ['tracks'] | can be very performance/data heavy with very large playlists, consider making a maximum limit or something
 
 class SpotDict:
 
@@ -92,6 +92,13 @@ class SpotDict:
             print('added saved albums to dict')
     
     @timer
+    def get_top_items(self):
+        top_items = self.multiple_api_calls(func = self.spot_obj.current_user_top_tracks, limit = 50)
+        if top_items:
+            self.spot_dict['top items'] = top_items
+            if self.DEBUG_PRINT: print(f'added {len(top_items)} top items to dict')
+
+    @timer
     def multiple_api_calls_playlist(self, playlist_id, name, limit = 100):
         #this one is a little frustrating because the only difference between this and multiple_api_calls() is that i needed an extra function argument 'playlist_id'
         #which can't be present for the other functions. i think you can do something with **kwargs but i couldn't understand how
@@ -162,10 +169,3 @@ class SpotDict:
             else:
                 self.spot_dict['playlists'][spot_number]['tracks']['tracks'] = self.multiple_api_calls_playlist(playlist_id = id, name = name)
                 print(f'inserting tracks from {name} in slot {spot_number}')
-
-
-x = SpotDict('BQCR8U6e4RIOQFsglDwnWGOvSAUtP9eSMMtnuTN8sono7n48Bqgl_dRc7K_2rTQ5tcPzHFUHvpuW-h-rwlykmkBtkoD3CBJMl7LFvih4W7RHyBpIWkRb0ozB1QRa_Cb-32Xm2K7Hbdq-jbiY8gCO7Fu4jth1W_iW0n34CSMVjfPbxfoShuBFPhco_TmgliXkdmbYT-ypPEN8UA6-')
-
-print(x.get_liked_songs(), x.get_playlists(), x.get_saved_albums())
-x.get_playlists_and_items()
-print(x.spot_dict)
