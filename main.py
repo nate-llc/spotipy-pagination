@@ -171,7 +171,7 @@ class SpotDict:
                 print(f'inserting tracks from {name} in slot {spot_number}')
 
 
-x = SpotDict('BQCR8U6e4RIOQFsglDwnWGOvSAUtP9eSMMtnuTN8sono7n48Bqgl_dRc7K_2rTQ5tcPzHFUHvpuW-h-rwlykmkBtkoD3CBJMl7LFvih4W7RHyBpIWkRb0ozB1QRa_Cb-32Xm2K7Hbdq-jbiY8gCO7Fu4jth1W_iW0n34CSMVjfPbxfoShuBFPhco_TmgliXkdmbYT-ypPEN8UA6-')
+x = SpotDict('auth')
 
 print(x.get_liked_songs(), x.get_playlists(), x.get_saved_albums())
 x.get_playlists_and_items()
