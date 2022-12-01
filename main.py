@@ -68,65 +68,68 @@ class SpotDict:
 
     @timer
     def _pagination(self,
-                    func: Callable = None, 
-                    limit: int = 50, 
-                    playlist_id: str = None, 
-                    name: str = None
-                    ) -> dict:
+                    func: Callable = None,
+                    limit: int = 50) -> list:
 
         """takes the function and does the spotify api call.
            all other methods point to this one, making it dry.
            it's a little messy because getting playlist_items returns
            in a different format than all the other calls."""
 
-        if playlist_id:  # one of the few differences between playlist items and the rest
-            total = self.spot_obj.playlist_tracks(playlist_id=playlist_id, limit=1)['total']
-        if not playlist_id:  # normal case
-            total = func(limit=1)['total']
+        total = func(limit=1)['total']
         iterations = (int((total / limit)) + (total % limit > 0))
-
-        combination_list = []
-        longer_list = []
-        song_number = 0
+        songs, items = [], []
 
         for iteration in range(iterations):
-            if playlist_id:
-                response = self.spot_obj.playlist_tracks(playlist_id=playlist_id,
-                                                         limit=limit,
-                                                         offset=iteration * limit
-                                                         )
+            response = func(limit=limit, 
+                            offset=iteration * limit)
+            items.append(response)
 
-                if self.debug_print: 
-                    print(f'added songs {song_number} through {song_number + limit}')
-                    if self.sleep_time: 
-                        print(f'waiting {self.sleep_time} seconds')
+        for iteration in items:
+            for idx in range(len(iteration['items'])):
+                if self.remove_available_markets:
+                    self._remove_available_markets(iteration, func, idx)
+                songs.append(iteration['items'][idx])
+        return songs
 
-                song_number += limit  # only for printing purposes
-                time.sleep(self.sleep_time)  # api budgeting
+    @timer
+    def _playlist_item_pagination(self,
+                                  playlist_id: str,
+                                  limit: int = 100,
+                                  ) -> list:
+        """pagination for playlist items. only a little different.
+           songs is only the song data, items has the song and some other
+           metadata that spotify keeps other than the song. if you want this
+           data, return the items list instead of songs. 
+           i don't have a need for items, so i've left it out."""
 
-            if not playlist_id: 
-                response = func(limit=limit, 
-                                offset=iteration * limit)
+        songs, items = [], []
 
-            longer_list.append(response)
+        total = self.spot_obj.playlist_tracks(playlist_id=playlist_id, limit=1)['total']
+        iterations = (int((total / limit)) + (total % limit > 0))
 
-        if playlist_id:
-            for iteration in longer_list:
-                for x in range(len(iteration['items'])):
-                    if self.remove_available_markets:
-                        iteration['items'][x]['track'].pop('available_markets')
-                        iteration['items'][x]['track']['album'].pop('available_markets')
-                    combination_list.append(iteration['items'][x])
+        for iteration in range(iterations):
+            response = self.spot_obj.playlist_tracks(playlist_id=playlist_id,
+                                                 limit=limit,
+                                                 offset=iteration * limit
+                                                 )
+            items.append(response)
+
             if self.debug_print: 
-                print(f"added {len(combination_list)} songs from playlist {name} with playist id {playlist_id} to dict")
+                print(f'added songs {iteration + limit} through {iteration * limit + limit}')
+                if self.sleep_time:
+                    print(f'waiting {self.sleep_time} seconds')
 
-        if not playlist_id:
-            for iteration in longer_list:
-                for x in range(len(iteration['items'])):
-                    if self.remove_available_markets:
-                        self._remove_available_markets(iteration, func, x)
-                    combination_list.append(iteration['items'][x])
-        return combination_list
+        time.sleep(self.sleep_time)  # api budgeting
+
+        for iteration in items:
+            for idx in range(len(iteration['items'])):
+                if self.remove_available_markets:
+                    iteration['items'][idx]['track'].pop('available_markets')
+                    iteration['items'][idx]['track']['album'].pop('available_markets')
+                songs.append(iteration['items'][idx])
+        if self.debug_print: 
+            print(f"added {len(songs)} songs in playist id {playlist_id} to dict")
 
     @timer
     def get_liked_songs(self) -> dict:
@@ -198,18 +201,17 @@ class SpotDict:
             if self.debug_print: 
                 name = self.spot_obj.playlist(playlist_id=playlist_id)['name']
 
-            # we need the spot_number because in ['playlists'], it's ordered from 0 up. this is the spot in which we're going to put the tracks
             spot_number = playlist_ids.index(playlist_id)
             if only_add_owned_playlists:
                 if self.spot_dict['playlists'][spot_number]['owner']['id'] == self.spot_dict['user']['id']:
                     if self.debug_print:
                         print(f'inserting tracks from {name} in slot {spot_number}')
-                    self.spot_dict['playlists'][spot_number]['tracks']['items'] = self._pagination(playlist_id=id, limit=100, name=name)
+                    self.spot_dict['playlists'][spot_number]['tracks']['items'] = self._playlist_item_pagination(playlist_id)
                 else:
                     if self.debug_print:
                         print(f'skipped {name}\n')
             else:
-                self.spot_dict['playlists'][spot_number]['tracks']['items'] = self._pagination(playlist_id=id, limit=100, name=name)
+                self.spot_dict['playlists'][spot_number]['tracks']['items'] = self._playlist_item_pagination(playlist_id)
                 if self.debug_print: 
                     print(f'inserting tracks from {name} in slot {spot_number}')
         return self.spot_dict['playlists']
